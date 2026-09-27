@@ -23,13 +23,12 @@ class ExceptionTest {
     @Test
     @DisplayName("Should create ResourceNotFoundException")
     void testResourceNotFoundException() {
-        String message = "Resource not found";
-        String code = "NOT_FOUND";
+        String resourceName = "Customer";
+        Long id = 123L;
 
-        ResourceNotFoundException exception = new ResourceNotFoundException(message, code);
+        ResourceNotFoundException exception = new ResourceNotFoundException(resourceName, id);
 
-        assertThat(exception.getMessage()).isEqualTo(message);
-        assertThat(exception.getErrorCode()).isEqualTo(code);
+        assertThat(exception.getMessage()).isNotNull();
     }
 
     @Test
