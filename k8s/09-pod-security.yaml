@@ -1,0 +1,175 @@
+---
+# Pod Security Policy - Restricted (for production)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: restricted-psp
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+  - ALL
+  volumes:
+  - configMap
+  - emptyDir
+  - projected
+  - secret
+  - downwardAPI
+  - persistentVolumeClaim
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: MustRunAsNonRoot
+  runAsGroup:
+    rule: MustRunAs
+    ranges:
+    - min: 1000
+      max: 65535
+  seLinux:
+    rule: MustRunAs
+    seLinuxOptions:
+      level: "s0:c123,c456"
+  fsGroup:
+    rule: MustRunAs
+    ranges:
+    - min: 1000
+      max: 65535
+  readOnlyRootFilesystem: false
+
+---
+# Pod Security Policy - Baseline (for development/staging)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: baseline-psp
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  volumes:
+  - '*'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: MustRunAsNonRoot
+  seLinux:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+
+---
+# Cluster Role for PSP
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: restricted-psp-user
+rules:
+- apiGroups:
+  - policy
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+  resourceNames:
+  - restricted-psp
+
+---
+# Cluster Role for PSP Baseline
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: baseline-psp-user
+rules:
+- apiGroups:
+  - policy
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+  resourceNames:
+  - baseline-psp
+
+---
+# Cluster Role Binding for Production
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ecommerce-prod-psp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: restricted-psp-user
+subjects:
+- kind: ServiceAccount
+  name: ecommerce-sa
+  namespace: ecommerce-prod
+
+---
+# Cluster Role Binding for Staging
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ecommerce-staging-psp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: baseline-psp-user
+subjects:
+- kind: ServiceAccount
+  name: ecommerce-sa
+  namespace: ecommerce-staging
+
+---
+# Cluster Role Binding for Development
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ecommerce-dev-psp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: baseline-psp-user
+subjects:
+- kind: ServiceAccount
+  name: ecommerce-sa
+  namespace: ecommerce-dev
+
+---
+# Security Context Constraints for OpenShift (if using OpenShift)
+# Alternative to PSP for restricted environments
+apiVersion: v1
+kind: SecurityContextConstraints
+metadata:
+  name: ecommerce-restricted-scc
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: false
+allowedCapabilities: null
+defaultAddCapabilities: null
+fsGroup:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+readOnlyRootFilesystem: false
+requiredDropCapabilities:
+- ALL
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+  seLinuxOptions:
+    level: "s0:c123,c456"
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+users:
+- system:serviceaccount:ecommerce-prod:ecommerce-sa
+- system:serviceaccount:ecommerce-staging:ecommerce-sa
+- system:serviceaccount:ecommerce-dev:ecommerce-sa

@@ -1,0 +1,217 @@
+---
+# Service Account for microservices
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ecommerce-sa
+  namespace: ecommerce-dev
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ecommerce-sa
+  namespace: ecommerce-staging
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ecommerce-sa
+  namespace: ecommerce-prod
+
+---
+# Service Account for monitoring
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-sa
+  namespace: ecommerce-monitoring
+
+---
+# ClusterRole for reading pod metrics
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-role
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - statefulsets
+  - deployments
+  - daemonsets
+  - replicasets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources:
+  - jobs
+  - cronjobs
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+
+---
+# ClusterRoleBinding for Prometheus
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus-role
+subjects:
+- kind: ServiceAccount
+  name: prometheus-sa
+  namespace: ecommerce-monitoring
+
+---
+# Role for development environment
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecommerce-role
+  namespace: ecommerce-dev
+rules:
+- apiGroups: [""]
+  resources:
+  - configmaps
+  - secrets
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - services
+  - endpoints
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - pods/log
+  verbs: ["get"]
+
+---
+# Role for staging environment
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecommerce-role
+  namespace: ecommerce-staging
+rules:
+- apiGroups: [""]
+  resources:
+  - configmaps
+  - secrets
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - services
+  - endpoints
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - pods/log
+  verbs: ["get"]
+
+---
+# Role for production environment (restricted)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecommerce-role
+  namespace: ecommerce-prod
+rules:
+- apiGroups: [""]
+  resources:
+  - configmaps
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources:
+  - secrets
+  verbs: ["get"]
+- apiGroups: [""]
+  resources:
+  - services
+  - endpoints
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - statefulsets
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources:
+  - pods
+  verbs: ["get", "list"]
+
+---
+# RoleBinding for development
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecommerce-role-binding
+  namespace: ecommerce-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ecommerce-role
+subjects:
+- kind: ServiceAccount
+  name: ecommerce-sa
+  namespace: ecommerce-dev
+
+---
+# RoleBinding for staging
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecommerce-role-binding
+  namespace: ecommerce-staging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ecommerce-role
+subjects:
+- kind: ServiceAccount
+  name: ecommerce-sa
+  namespace: ecommerce-staging
+
+---
+# RoleBinding for production
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecommerce-role-binding
+  namespace: ecommerce-prod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ecommerce-role
+subjects:
+- kind: ServiceAccount
+  name: ecommerce-sa
+  namespace: ecommerce-prod

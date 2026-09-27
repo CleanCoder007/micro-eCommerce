@@ -1,0 +1,57 @@
+---
+# Development Environment Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce-dev
+  labels:
+    name: ecommerce-dev
+    environment: development
+  annotations:
+    description: "Development environment for ecommerce microservices"
+
+---
+# Staging Environment Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce-staging
+  labels:
+    name: ecommerce-staging
+    environment: staging
+  annotations:
+    description: "Staging environment for ecommerce microservices"
+
+---
+# Production Environment Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce-prod
+  labels:
+    name: ecommerce-prod
+    environment: production
+  annotations:
+    description: "Production environment for ecommerce microservices"
+
+---
+# Monitoring & Observability Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce-monitoring
+  labels:
+    name: ecommerce-monitoring
+  annotations:
+    description: "Monitoring and observability stack"
+
+---
+# Ingress Controller Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce-ingress
+  labels:
+    name: ecommerce-ingress
+  annotations:
+    description: "Ingress controllers and load balancers"

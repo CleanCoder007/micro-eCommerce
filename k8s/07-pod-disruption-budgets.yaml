@@ -1,0 +1,155 @@
+---
+# Pod Disruption Budget for API Gateway - Development
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: ecommerce-dev
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+
+---
+# Pod Disruption Budget for Customer Service - Development
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: customer-service-pdb
+  namespace: ecommerce-dev
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: customer-service
+
+---
+# Pod Disruption Budget for Order Service - Development
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: order-service-pdb
+  namespace: ecommerce-dev
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: order-service
+
+---
+# Pod Disruption Budget for Inventory Service - Development
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: inventory-service-pdb
+  namespace: ecommerce-dev
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: inventory-service
+
+---
+# Pod Disruption Budget for Payment Service - Development
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payment-service-pdb
+  namespace: ecommerce-dev
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: payment-service
+
+---
+# Pod Disruption Budget for Discovery Server - Development
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: discovery-server-pdb
+  namespace: ecommerce-dev
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: discovery-server
+
+---
+# Pod Disruption Budget for Config Server - Development
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: config-server-pdb
+  namespace: ecommerce-dev
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: config-server
+
+---
+# Pod Disruption Budget for API Gateway - Staging (higher tolerance)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: ecommerce-staging
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+
+---
+# Pod Disruption Budget for API Gateway - Production (highest tolerance)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: ecommerce-prod
+spec:
+  minAvailable: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+
+---
+# Pod Disruption Budget for Customer Service - Production
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: customer-service-pdb
+  namespace: ecommerce-prod
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: customer-service
+
+---
+# Pod Disruption Budget for Order Service - Production
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: order-service-pdb
+  namespace: ecommerce-prod
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: order-service
+
+---
+# Pod Disruption Budget for Payment Service - Production
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payment-service-pdb
+  namespace: ecommerce-prod
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: payment-service
