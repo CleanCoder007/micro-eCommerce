@@ -41,7 +41,6 @@ class EventSourcingServiceTest {
     void setUp() {
         testEvent = new OrderCreatedEvent();
         testEvent.setEventId("event-123");
-        testEvent.setEventType("OrderCreated");
         testEvent.setAggregateId("order-456");
         testEvent.setAggregateType("Order");
         testEvent.setVersion(1);
@@ -124,7 +123,7 @@ class EventSourcingServiceTest {
         List<EventStore> events = Arrays.asList(eventStore);
         when(eventStoreRepository.findEventsSince("order-456", 1)).thenReturn(events);
 
-        List<EventStore> result = eventSourcingService.getEventsSince("order-456", 1);
+        List<EventStore> result = eventSourcingService.getEventsBySince("order-456", 1);
 
         assertThat(result).isNotEmpty();
     }
