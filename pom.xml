@@ -28,6 +28,7 @@
         <jjwt.version>0.12.3</jjwt.version>
         <liquibase.version>4.27.0</liquibase.version>
         <postgresql.version>42.7.3</postgresql.version>
+        <resilience4j.version>2.1.0</resilience4j.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
     </properties>
@@ -65,6 +66,14 @@
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-database-oracle</artifactId>
                 <version>9.22.3</version>
+            </dependency>
+            <!-- Resilience4j BOM -->
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-bom</artifactId>
+                <version>${resilience4j.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -201,6 +210,27 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
+        </dependency>
+        <!-- Resilience4j Core -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-circuitbreaker</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-retry</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-timelimiter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-aspects</artifactId>
         </dependency>
     </dependencies>
     <build>
