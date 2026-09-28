@@ -1,0 +1,97 @@
+{
+  "template": {
+    "settings": {
+      "number_of_shards": 2,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "ecommerce_logs_policy",
+      "index.lifecycle.rollover_alias": "ecommerce-logs",
+      "index.codec": "best_compression",
+      "analysis": {
+        "analyzer": {
+          "default": {
+            "type": "standard",
+            "stopwords": "_english_"
+          }
+        }
+      }
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        },
+        "message": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "level": {
+          "type": "keyword"
+        },
+        "logger_name": {
+          "type": "keyword"
+        },
+        "correlationId": {
+          "type": "keyword"
+        },
+        "requestId": {
+          "type": "keyword"
+        },
+        "userId": {
+          "type": "keyword"
+        },
+        "customerId": {
+          "type": "keyword"
+        },
+        "serviceName": {
+          "type": "keyword"
+        },
+        "componentName": {
+          "type": "keyword"
+        },
+        "environment": {
+          "type": "keyword"
+        },
+        "thread_name": {
+          "type": "keyword"
+        },
+        "exceptionType": {
+          "type": "keyword"
+        },
+        "rootCause": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "stackTrace": {
+          "type": "text",
+          "index": false
+        },
+        "duration": {
+          "type": "long"
+        },
+        "metadata": {
+          "type": "object",
+          "enabled": true
+        },
+        "contextData": {
+          "type": "object",
+          "enabled": true
+        }
+      }
+    }
+  },
+  "index_patterns": [
+    "ecommerce-logs-*",
+    "ecommerce-critical-logs-*"
+  ]
+}
