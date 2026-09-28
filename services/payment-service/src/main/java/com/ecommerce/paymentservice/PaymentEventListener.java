@@ -8,10 +8,16 @@ import com.ecommerce.common.events.PaymentFailedEvent;
 import com.ecommerce.common.events.RefundInitiatedEvent;
 import com.ecommerce.common.events.RefundCompletedEvent;
 import com.ecommerce.common.events.EventPublisher;
+import com.ecommerce.common.exception.DeadLetterException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
@@ -43,7 +49,12 @@ public class PaymentEventListener {
      * Publishes PaymentProcessedEvent on success or PaymentFailedEvent on failure.
      */
     @KafkaListener(topics = "inventory-reserved", groupId = "payment-group")
-    public void handleInventoryReserved(@Payload InventoryReservedEvent event, Acknowledgment ack) {
+    @CircuitBreaker(name = "paymentService", fallbackMethod = "fallbackHandleInventoryReserved")
+    @Retry(name = "paymentService")
+    @TimeLimiter(name = "paymentService")
+    public void handleInventoryReserved(@Payload InventoryReservedEvent event,
+                                        Acknowledgment ack,
+                                        @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic) {
         try {
             log.info("Handling inventory reserved event for order: {} - Processing payment", event.getOrderId());
 
@@ -66,9 +77,8 @@ public class PaymentEventListener {
                 event.getOrderId(), savedPayment.getAmount());
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("Error handling inventory reserved event for order: {}", event.getOrderId(), e);
+            log.error("Error handling inventory reserved event for order: {} from topic: {}", event.getOrderId(), topic, e);
 
-            // Include product/quantity in payment failed event for inventory compensation
             PaymentFailedEvent failedEvent = new PaymentFailedEvent(
                 event.getOrderId(),
                 event.getProductId(),
@@ -78,8 +88,17 @@ public class PaymentEventListener {
             eventPublisher.publishEvent(failedEvent, "payment-failed",
                 event.getEventId(), event.getEventId());
 
-            log.warn("✗ Payment processing failed for order: {} - Triggering compensation", event.getOrderId());
+            throw new DeadLetterException("Failed to process inventory reserved event: " + e.getMessage(),
+                topic != null ? topic : "inventory-reserved", event.getOrderId().toString());
         }
+    }
+
+    public void fallbackHandleInventoryReserved(InventoryReservedEvent event,
+                                               Acknowledgment ack,
+                                               @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
+                                               Exception ex) {
+        log.error("Fallback: Circuit breaker open or max retries exceeded for inventory reserved event for order: {}",
+            event.getOrderId(), ex);
     }
 
     /**
@@ -87,24 +106,25 @@ public class PaymentEventListener {
      * This is a Saga rollback - reverse the payment charge.
      */
     @KafkaListener(topics = "order-cancelled", groupId = "payment-group")
-    public void handleOrderCancelled(@Payload OrderCancelledEvent event, Acknowledgment ack) {
+    @CircuitBreaker(name = "paymentService", fallbackMethod = "fallbackHandleOrderCancelled")
+    @Retry(name = "paymentService")
+    @TimeLimiter(name = "paymentService")
+    public void handleOrderCancelled(@Payload OrderCancelledEvent event,
+                                     Acknowledgment ack,
+                                     @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic) {
         try {
             log.info("Handling order cancelled event for order: {} - Processing refund (Compensating Transaction)",
                 event.getOrderId());
 
-            // Find the payment for this order
             Optional<Payment> paymentOpt = repository.findByOrderId(event.getOrderId());
 
             if (paymentOpt.isPresent()) {
                 Payment payment = paymentOpt.get();
 
-                // Only refund if payment was actually processed
                 if (payment.getStatus() == PaymentStatus.PROCESSED) {
-                    // Update payment status to REFUNDED
                     payment.setStatus(PaymentStatus.REFUNDED);
                     repository.save(payment);
 
-                    // Publish refund completed event
                     RefundCompletedEvent refundCompletedEvent = new RefundCompletedEvent(
                         event.getOrderId(),
                         payment.getId(),
@@ -125,7 +145,17 @@ public class PaymentEventListener {
 
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("Error handling order cancelled event for order: {}", event.getOrderId(), e);
+            log.error("Error handling order cancelled event for order: {} from topic: {}", event.getOrderId(), topic, e);
+            throw new DeadLetterException("Failed to process order cancelled event: " + e.getMessage(),
+                topic != null ? topic : "order-cancelled", event.getOrderId().toString());
         }
+    }
+
+    public void fallbackHandleOrderCancelled(OrderCancelledEvent event,
+                                            Acknowledgment ack,
+                                            @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
+                                            Exception ex) {
+        log.error("Fallback: Circuit breaker open or max retries exceeded for order cancelled event for order: {}",
+            event.getOrderId(), ex);
     }
 }

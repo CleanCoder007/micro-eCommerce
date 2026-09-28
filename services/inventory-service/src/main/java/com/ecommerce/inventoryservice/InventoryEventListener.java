@@ -6,10 +6,16 @@ import com.ecommerce.common.events.InventoryReleasedEvent;
 import com.ecommerce.common.events.OrderCreatedEvent;
 import com.ecommerce.common.events.PaymentFailedEvent;
 import com.ecommerce.common.events.EventPublisher;
+import com.ecommerce.common.exception.DeadLetterException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
@@ -40,7 +46,12 @@ public class InventoryEventListener {
      * Publishes InventoryReservedEvent on success or InventoryFailedEvent on failure.
      */
     @KafkaListener(topics = "order-created", groupId = "inventory-group")
-    public void handleOrderCreated(@Payload OrderCreatedEvent event, Acknowledgment ack) {
+    @CircuitBreaker(name = "inventoryService", fallbackMethod = "fallbackHandleOrderCreated")
+    @Retry(name = "inventoryService")
+    @TimeLimiter(name = "inventoryService")
+    public void handleOrderCreated(@Payload OrderCreatedEvent event,
+                                   Acknowledgment ack,
+                                   @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic) {
         try {
             log.info("Handling order created event for order: {} - Reserving inventory for product: {}, quantity: {}",
                 event.getOrderId(), event.getProductId(), event.getQuantity());
@@ -52,7 +63,6 @@ public class InventoryEventListener {
                 inventory.setQuantity(inventory.getQuantity() - event.getQuantity());
                 repository.save(inventory);
 
-                // Include product and quantity in reserved event for potential compensation
                 InventoryReservedEvent reservedEvent = new InventoryReservedEvent(
                     event.getOrderId(),
                     event.getProductId(),
@@ -74,8 +84,18 @@ public class InventoryEventListener {
 
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("Error handling order created event for order: {}", event.getOrderId(), e);
+            log.error("Error handling order created event for order: {} from topic: {}", event.getOrderId(), topic, e);
+            throw new DeadLetterException("Failed to process order created event: " + e.getMessage(),
+                topic != null ? topic : "order-created", event.getOrderId().toString());
         }
+    }
+
+    public void fallbackHandleOrderCreated(OrderCreatedEvent event,
+                                          Acknowledgment ack,
+                                          @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
+                                          Exception ex) {
+        log.error("Fallback: Circuit breaker open or max retries exceeded for order created event for order: {}",
+            event.getOrderId(), ex);
     }
 
     /**
@@ -83,7 +103,12 @@ public class InventoryEventListener {
      * This is a Saga rollback - reverse the inventory reservation.
      */
     @KafkaListener(topics = "payment-failed", groupId = "inventory-group")
-    public void handlePaymentFailed(@Payload PaymentFailedEvent event, Acknowledgment ack) {
+    @CircuitBreaker(name = "inventoryService", fallbackMethod = "fallbackHandlePaymentFailed")
+    @Retry(name = "inventoryService")
+    @TimeLimiter(name = "inventoryService")
+    public void handlePaymentFailed(@Payload PaymentFailedEvent event,
+                                    Acknowledgment ack,
+                                    @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic) {
         try {
             log.info("Handling payment failed event for order: {} - Releasing inventory (Compensating Transaction)",
                 event.getOrderId());
@@ -93,7 +118,6 @@ public class InventoryEventListener {
 
                 if (inventoryOpt.isPresent()) {
                     Inventory inventory = inventoryOpt.get();
-                    // Release (add back) the reserved quantity
                     inventory.setQuantity(inventory.getQuantity() + event.getQuantity());
                     repository.save(inventory);
 
@@ -116,7 +140,17 @@ public class InventoryEventListener {
 
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("Error handling payment failed event for order: {}", event.getOrderId(), e);
+            log.error("Error handling payment failed event for order: {} from topic: {}", event.getOrderId(), topic, e);
+            throw new DeadLetterException("Failed to process payment failed event: " + e.getMessage(),
+                topic != null ? topic : "payment-failed", event.getOrderId().toString());
         }
+    }
+
+    public void fallbackHandlePaymentFailed(PaymentFailedEvent event,
+                                           Acknowledgment ack,
+                                           @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
+                                           Exception ex) {
+        log.error("Fallback: Circuit breaker open or max retries exceeded for payment failed event for order: {}",
+            event.getOrderId(), ex);
     }
 }
