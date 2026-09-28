@@ -7,12 +7,19 @@ import com.ecommerce.common.events.PaymentProcessedEvent;
 import com.ecommerce.common.events.OrderCancelledEvent;
 import com.ecommerce.common.events.RefundCompletedEvent;
 import com.ecommerce.common.events.EventPublisher;
+import com.ecommerce.common.exception.DeadLetterException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Order Event Listener - Saga Orchestrator for Distributed Transaction
@@ -41,7 +48,12 @@ public class OrderEventListener {
      * Happy Path: Order successfully completed after payment.
      */
     @KafkaListener(topics = "payment-processed", groupId = "order-group")
-    public void handlePaymentProcessed(@Payload PaymentProcessedEvent event, Acknowledgment ack) {
+    @CircuitBreaker(name = "orderService", fallbackMethod = "fallbackHandlePaymentProcessed")
+    @Retry(name = "orderService")
+    @TimeLimiter(name = "orderService")
+    public void handlePaymentProcessed(@Payload PaymentProcessedEvent event,
+                                       Acknowledgment ack,
+                                       @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic) {
         try {
             log.info("Handling payment processed event for order: {} - Saga moving to COMPLETED state", event.getOrderId());
             repository.findById(event.getOrderId()).ifPresent(order -> {
@@ -52,8 +64,18 @@ public class OrderEventListener {
             });
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("Error handling payment processed event for order: {}", event.getOrderId(), e);
+            log.error("Error handling payment processed event for order: {} from topic: {}", event.getOrderId(), topic, e);
+            throw new DeadLetterException("Failed to process payment event: " + e.getMessage(),
+                topic != null ? topic : "payment-processed", event.getOrderId().toString());
         }
+    }
+
+    public void fallbackHandlePaymentProcessed(PaymentProcessedEvent event,
+                                              Acknowledgment ack,
+                                              @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
+                                              Exception ex) {
+        log.error("Fallback: Circuit breaker open or max retries exceeded for payment processed event for order: {}",
+            event.getOrderId(), ex);
     }
 
     /**
@@ -61,14 +83,18 @@ public class OrderEventListener {
      * Triggers compensation by publishing OrderCancelledEvent.
      */
     @KafkaListener(topics = "inventory-failed", groupId = "order-group")
-    public void handleInventoryFailed(@Payload InventoryFailedEvent event, Acknowledgment ack) {
+    @CircuitBreaker(name = "orderService", fallbackMethod = "fallbackHandleInventoryFailed")
+    @Retry(name = "orderService")
+    @TimeLimiter(name = "orderService")
+    public void handleInventoryFailed(@Payload InventoryFailedEvent event,
+                                      Acknowledgment ack,
+                                      @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic) {
         try {
             log.info("Handling inventory failed event for order: {} - Saga triggered CANCELLATION", event.getOrderId());
             repository.findById(event.getOrderId()).ifPresent(order -> {
                 order.setStatus(OrderStatus.CANCELLED);
                 repository.save(order);
 
-                // Publish OrderCancelledEvent to trigger compensating transactions
                 OrderCancelledEvent cancelledEvent = new OrderCancelledEvent(
                     order.getId(),
                     "Inventory reservation failed"
@@ -80,8 +106,18 @@ public class OrderEventListener {
             });
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("Error handling inventory failed event for order: {}", event.getOrderId(), e);
+            log.error("Error handling inventory failed event for order: {} from topic: {}", event.getOrderId(), topic, e);
+            throw new DeadLetterException("Failed to process inventory failed event: " + e.getMessage(),
+                topic != null ? topic : "inventory-failed", event.getOrderId().toString());
         }
+    }
+
+    public void fallbackHandleInventoryFailed(InventoryFailedEvent event,
+                                             Acknowledgment ack,
+                                             @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
+                                             Exception ex) {
+        log.error("Fallback: Circuit breaker open or max retries exceeded for inventory failed event for order: {}",
+            event.getOrderId(), ex);
     }
 
     /**
@@ -90,7 +126,12 @@ public class OrderEventListener {
      * This causes: Payment refund + Inventory release.
      */
     @KafkaListener(topics = "payment-failed", groupId = "order-group")
-    public void handlePaymentFailed(@Payload PaymentFailedEvent event, Acknowledgment ack) {
+    @CircuitBreaker(name = "orderService", fallbackMethod = "fallbackHandlePaymentFailed")
+    @Retry(name = "orderService")
+    @TimeLimiter(name = "orderService")
+    public void handlePaymentFailed(@Payload PaymentFailedEvent event,
+                                    Acknowledgment ack,
+                                    @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic) {
         try {
             log.info("Handling payment failed event for order: {} - Saga triggered CANCELLATION (Compensating Transactions)",
                 event.getOrderId());
@@ -98,7 +139,6 @@ public class OrderEventListener {
                 order.setStatus(OrderStatus.CANCELLED);
                 repository.save(order);
 
-                // Publish OrderCancelledEvent to trigger compensating transactions
                 OrderCancelledEvent cancelledEvent = new OrderCancelledEvent(
                     order.getId(),
                     event.getReason() != null ? event.getReason() : "Payment processing failed"
@@ -111,8 +151,18 @@ public class OrderEventListener {
             });
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("Error handling payment failed event for order: {}", event.getOrderId(), e);
+            log.error("Error handling payment failed event for order: {} from topic: {}", event.getOrderId(), topic, e);
+            throw new DeadLetterException("Failed to process payment failed event: " + e.getMessage(),
+                topic != null ? topic : "payment-failed", event.getOrderId().toString());
         }
+    }
+
+    public void fallbackHandlePaymentFailed(PaymentFailedEvent event,
+                                           Acknowledgment ack,
+                                           @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
+                                           Exception ex) {
+        log.error("Fallback: Circuit breaker open or max retries exceeded for payment failed event for order: {}",
+            event.getOrderId(), ex);
     }
 
     /**
@@ -120,7 +170,12 @@ public class OrderEventListener {
      * Order is now fully rolled back to initial state.
      */
     @KafkaListener(topics = "refund-completed", groupId = "order-group")
-    public void handleRefundCompleted(@Payload RefundCompletedEvent event, Acknowledgment ack) {
+    @CircuitBreaker(name = "orderService", fallbackMethod = "fallbackHandleRefundCompleted")
+    @Retry(name = "orderService")
+    @TimeLimiter(name = "orderService")
+    public void handleRefundCompleted(@Payload RefundCompletedEvent event,
+                                      Acknowledgment ack,
+                                      @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic) {
         try {
             log.info("Handling refund completed event for order: {} - All compensating transactions complete",
                 event.getOrderId());
@@ -130,7 +185,17 @@ public class OrderEventListener {
             });
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("Error handling refund completed event for order: {}", event.getOrderId(), e);
+            log.error("Error handling refund completed event for order: {} from topic: {}", event.getOrderId(), topic, e);
+            throw new DeadLetterException("Failed to process refund completed event: " + e.getMessage(),
+                topic != null ? topic : "refund-completed", event.getOrderId().toString());
         }
+    }
+
+    public void fallbackHandleRefundCompleted(RefundCompletedEvent event,
+                                             Acknowledgment ack,
+                                             @Header(name = KafkaHeaders.RECEIVED_TOPIC, required = false) String topic,
+                                             Exception ex) {
+        log.error("Fallback: Circuit breaker open or max retries exceeded for refund completed event for order: {}",
+            event.getOrderId(), ex);
     }
 }

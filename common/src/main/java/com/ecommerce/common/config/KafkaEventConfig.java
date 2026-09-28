@@ -179,4 +179,76 @@ public class KafkaEventConfig {
             .replicas(replicationFactor)
             .build();
     }
+
+    @Bean
+    public NewTopic orderCancelledTopic() {
+        return TopicBuilder.name("order-cancelled")
+            .partitions(partitions)
+            .replicas(replicationFactor)
+            .build();
+    }
+
+    @Bean
+    public NewTopic orderCancelledDlqTopic() {
+        return TopicBuilder.name("order-cancelled" + dlqSuffix)
+            .partitions(1)
+            .replicas(replicationFactor)
+            .build();
+    }
+
+    @Bean
+    public NewTopic refundCompletedTopic() {
+        return TopicBuilder.name("refund-completed")
+            .partitions(partitions)
+            .replicas(replicationFactor)
+            .build();
+    }
+
+    @Bean
+    public NewTopic refundCompletedDlqTopic() {
+        return TopicBuilder.name("refund-completed" + dlqSuffix)
+            .partitions(1)
+            .replicas(replicationFactor)
+            .build();
+    }
+
+    @Bean
+    public NewTopic orderEventsDltTopic() {
+        return TopicBuilder.name("order-events.DLT")
+            .partitions(1)
+            .replicas(replicationFactor)
+            .build();
+    }
+
+    @Bean
+    public NewTopic inventoryEventsDltTopic() {
+        return TopicBuilder.name("inventory-events.DLT")
+            .partitions(1)
+            .replicas(replicationFactor)
+            .build();
+    }
+
+    @Bean
+    public NewTopic paymentEventsDltTopic() {
+        return TopicBuilder.name("payment-events.DLT")
+            .partitions(1)
+            .replicas(replicationFactor)
+            .build();
+    }
+
+    @Bean
+    public NewTopic productEventsDltTopic() {
+        return TopicBuilder.name("product-events.DLT")
+            .partitions(1)
+            .replicas(replicationFactor)
+            .build();
+    }
+
+    @Bean
+    public NewTopic customerEventsDltTopic() {
+        return TopicBuilder.name("customer-events.DLT")
+            .partitions(1)
+            .replicas(replicationFactor)
+            .build();
+    }
 }
