@@ -1,0 +1,93 @@
+groups:
+  - name: database_performance
+    interval: 30s
+    rules:
+      - alert: SlowQuerySpike
+        expr: rate(db_query_slow_total[5m]) > (avg_over_time(rate(db_query_slow_total[5m])[1h:5m]) * 10)
+        for: 2m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow query spike detected on {{ $labels.service }}"
+          description: "Slow queries on {{ $labels.service }} has increased 10x above average"
+
+      - alert: HighSlowQueryRate
+        expr: rate(db_query_slow_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "High slow query rate on {{ $labels.service }}"
+          description: "More than 10 slow queries per minute on {{ $labels.service }}"
+
+      - alert: ConnectionPoolExhaustion
+        expr: (db_connection_pool_active / db_connection_pool_total) > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Connection pool utilization > 80%"
+          description: "Database connection pool is {{ $value | humanizePercentage }} utilized"
+
+      - alert: ConnectionPoolCritical
+        expr: (db_connection_pool_active / db_connection_pool_total) > 0.95
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Connection pool critically exhausted"
+          description: "Database connection pool is {{ $value | humanizePercentage }} utilized - critical"
+
+      - alert: QueryTimeoutRate
+        expr: rate(db_query_errors_total[5m]) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Query timeout rate > 2%"
+          description: "Query error rate is {{ $value | humanizePercentage }} on {{ $labels.service }}"
+
+      - alert: HighQueryDuration
+        expr: histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "p95 query latency > 500ms"
+          description: "95th percentile query latency on {{ $labels.service }} is {{ $value | humanizeDuration }}"
+
+      - alert: PossibleNPlusOneQuery
+        expr: rate(db_query_n_plus_one_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Possible N+1 query detected"
+          description: "Potential N+1 query pattern detected for entity {{ $labels.entity }}"
+
+      - alert: DatabaseConnectionDown
+        expr: up{job="database-metrics"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Database connection metrics unavailable"
+          description: "Cannot scrape database metrics from {{ $labels.instance }}"
+
+      - alert: HighQueryErrorRate
+        expr: rate(db_query_errors_total[5m]) / rate(db_query_count_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "High query error rate (>5%) on {{ $labels.service }}"
+          description: "Query error rate on {{ $labels.service }} is {{ $value | humanizePercentage }}"
