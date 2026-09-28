@@ -18,6 +18,7 @@ public class ErrorResponse {
     private String errorCode;
     private LocalDateTime timestamp;
     private String path;
+    private String traceId;
 
     public ErrorResponse(int status, String error, String message, String errorCode, LocalDateTime timestamp) {
         this.status = status;
