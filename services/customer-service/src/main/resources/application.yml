@@ -45,6 +45,65 @@ spring:
       time-to-live: 600000
       key-prefix: "customer-service:"
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+        slowCallRateThreshold: 100
+        slowCallDurationThreshold: 2s
+        recordExceptions:
+          - java.net.ConnectException
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+        ignoreExceptions:
+          - com.ecommerce.common.exception.ValidationException
+    instances:
+      customerService:
+        baseConfig: default
+      restClient:
+        baseConfig: default
+        waitDurationInOpenState: 30s
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 100ms
+        intervalFunction: exponential
+        exponentialBackoffMultiplier: 2.0
+        retryExceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+          - java.io.IOException
+        ignoreExceptions:
+          - com.ecommerce.common.exception.ValidationException
+          - org.springframework.web.client.HttpClientErrorException
+    instances:
+      customerService:
+        baseConfig: default
+      restClient:
+        baseConfig: default
+        maxAttempts: 3
+        waitDuration: 200ms
+        exponentialBackoffMultiplier: 2.0
+  timelimiter:
+    configs:
+      default:
+        cancelRunningFuture: false
+        timeoutDuration: 5s
+    instances:
+      customerService:
+        baseConfig: default
+      restClient:
+        baseConfig: default
+        timeoutDuration: 10s
+
 eureka:
   client:
     service-url:
